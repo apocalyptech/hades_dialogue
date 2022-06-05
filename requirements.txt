@@ -1,0 +1,4 @@
+appdirs ~= 1.4
+inputimeout ~= 1.0
+rich ~= 12.4
+SLPP ~= 1.2
