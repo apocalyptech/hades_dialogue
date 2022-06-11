@@ -38,11 +38,19 @@ import textwrap
 import subprocess
 import configparser
 
-# Non-standard-lib.  From my `hades` venv
+# Non-standard-libs.  From my `hades` venv
 import slpp
 import appdirs
 
 class OggLibrary:
+    """
+    The utility I use to extract the oggs (fsb-vorbis-extractor) writes out
+    files which have a number prefix.  This class is used to provide a
+    nice cue-to-filename mapping so that we can start with a value like
+    `ZagreusHome_1286` and easily get `17028.ZagreusHome_1286.ogg`.  The
+    class acts like a dict whose keys are the cue name and whose values
+    are the filename.
+    """
 
     ogg_re = re.compile(r'^(?P<num>\d+)\.(?P<vo>\S+)\.ogg$')
 
@@ -60,15 +68,32 @@ class OggLibrary:
         return self.oggs[key]
 
 class NotACueException(Exception):
-    pass
+    """
+    Used to indicate that the given JSON stanza isn't actually describing
+    a cue that we can play.
+    """
 
 class NoCuesException(Exception):
-    pass
+    """
+    Used to indicate that the given JSON stanza doesn't actually contain
+    any valid cues that we can play.
+    """
 
 class NoVOsException(Exception):
-    pass
+    """
+    Used to indicate that the given JSON stanza doesn't actually contain
+    any voiceovers (collections of cues) that we can play.
+    """
 
 class Cue:
+    """
+    Holds information about a single cue, which is a single line of dialogue
+    from a single character.  This can optionally include a starting delay,
+    information about what player choice is required to get to the dialogue,
+    the subtitles shown in the game, and any starting sounds which get played
+    at the start of the line.  (The latter seems to be most frequently used
+    for Cerberus sound effects.)
+    """
 
     def __init__(self, cue, text=None, delay=0, start_sound=None, choice=None):
         self.cue = cue
@@ -79,12 +104,19 @@ class Cue:
 
     @staticmethod
     def from_data(data, external_delay=0, choice=None):
+        """
+        Loads ourselves from data from the Lua/JSON.  The cue might have
+        a `choice` associated with it, and there might have been an initial
+        delay defined "above" this level.  Can raise `NotACueException`
+        if no actual cue is found.
+        """
         cue = None
         text = None
         delay = 0
         start_sound = None
         if 'Cue' in data:
             if data['Cue'] == '':
+                # Bouldy, in particular, includes a blank `Cue`
                 cue = ''
             elif match := VO.vo_re.match(data['Cue']):
                 cue = match.group('cue')
@@ -120,6 +152,9 @@ class Cue:
                 )
 
     def label(self):
+        """
+        How should this cue be displayed to the user?
+        """
         parts = []
         if self.cue == '':
             parts.append('(no audio)')
@@ -135,10 +170,18 @@ class Cue:
 
 
 class VO:
+    """
+    Class to describe a complete voiceover segment, which can be
+    composed of multiple Cue objects.  Basically just a single "scene"
+    of dialogue in the game.
+    """
 
     vo_re = re.compile(r'^/VO/(?P<cue>\S+)$')
 
     def __init__(self, data, file_map, config, label=None):
+        """
+        This can raise a `NoCuesException` if no actual cues are found
+        """
 
         self.file_map = file_map
         self.label = label
@@ -236,6 +279,11 @@ class VO:
         self.cues[0].delay = 0
 
     def play(self, do_prompt=False):
+        """
+        Play the whole dialogue, showing subtitles if we've got them.  This
+        obviously assumes that we're on a terminal; should really be
+        abstracted a bit better, but whatever.
+        """
         if self.label:
             print(self.label)
             print('-'*len(self.label))
@@ -270,8 +318,29 @@ class VO:
             print('')
 
 class Bank:
+    """
+    Base class to describe all voiceovers found for a single character.
+    This relies on being subclassed -- the most important var which
+    needs to be defined is `self.groups`, which defines the keys used
+    in the Lua/JSON to provide the various "categories" of dialogue.
+    For NPCs, that's generally Interactables/Gifts/Repeatables, but
+    the other character types have a bunch more.  See below for the
+    various implementations (NPC/Enemy/Loot).
+
+    The class keeps a `self.combined` dict so that dialogue can be
+    accessed by a single ID, without having to know which category the
+    lines came from.  In one instance, a dialogue key is found in more
+    than one location, though (Hermes' `HermesPostEnding01`).  So we
+    have a special-case to report on that in `play_cli.py`.
+
+    Acts as both an iterable and as a dict, to provide easy access to
+    the various voiceovers.
+    """
 
     def __init__(self, name, file_map, config, data):
+        """
+        Can raise `NoVOsException` if no voiceovers were found.
+        """
         self.name = name
         self.file_map = file_map
         self.config = config
@@ -309,6 +378,9 @@ class Bank:
         return self.combined[key]
 
 class NPCBank(Bank):
+    """
+    Stores voiceovers for NPCs
+    """
 
     def __init__(self, name, file_map, config, data):
         self.interacts = {}
@@ -322,6 +394,10 @@ class NPCBank(Bank):
         super().__init__(name, file_map, config, data)
 
 class EnemyBank(Bank):
+    """
+    Stores voiceovers for "Enemies" (which also includes Cerberus and
+    Thanatos, when encountered in the wild).
+    """
 
     def __init__(self, name, file_map, config, data):
         self.supers = {}
@@ -339,6 +415,9 @@ class EnemyBank(Bank):
         super().__init__(name, file_map, config, data)
 
 class LootBank(Bank):
+    """
+    Stores voiceovers for Loot/Boons -- ie: Olympian gods (plus Chaos)
+    """
 
     def __init__(self, name, file_map, config, data):
         self.duos = {}
@@ -362,6 +441,12 @@ class LootBank(Bank):
         super().__init__(name, file_map, config, data)
 
 class Registry:
+    """
+    Holds information about an entire group of characters in the game -- we'll have
+    one of these for each of NPCs, Enemies, and Loot.  Provides dict-like access to
+    the Bank objects, indexed by character name.  The `data_class` passed into the
+    constructor should be an implementation of `Bank`.
+    """
 
     def __init__(self, data_class, file_map, config, raw_data):
         self.config = config
@@ -391,6 +476,12 @@ class Registry:
         return self.data.values()
 
 class Dialogue:
+    """
+    Top-level wrapper for all the game dialogue that we care about.  Will contain
+    Registry objects for NPCs+Enemies+Loot, which in turn hold Bank objects to hold
+    each char, which in turn hold VO objects for each voiceover, which in turn
+    hold one or more Cue objects.
+    """
 
     def __init__(self, config):
 
@@ -430,6 +521,9 @@ class Dialogue:
         self.loot = Registry(LootBank, self.oggs, self.config, lootdata['LootData'])
 
     def _get_json_cache(self, script_filename):
+        """
+        Convert a given Lua script to JSON, for easier processing
+        """
         script_base = script_filename.rsplit('.', 1)[0]
         json_file = os.path.join(self.config.cache_dir, f'{script_base}.json.xz')
         if self.config.rebuild_cache or not os.path.exists(json_file):
@@ -477,6 +571,11 @@ class Dialogue:
         return json_file
 
 class BaseConfig(argparse.Namespace):
+    """
+    Base configuration for any app using this library.  Can be subclassed
+    to include more config options (be sure to implement `_read_extra_config`
+    and `_write_extra_config` if necessary!)
+    """
 
     # Config file handling
     config_dir = appdirs.user_config_dir('hades_dialogue', 'apocalyptech')
@@ -554,6 +653,10 @@ class BaseConfig(argparse.Namespace):
 
     @property
     def media_player_list(self):
+        """
+        Returns our media player command as a list, for easy passing
+        into `subprocess.run()`
+        """
         if not self._media_player_list:
             self._media_player_list = self.media_player.split()
         return self._media_player_list
@@ -587,6 +690,11 @@ class BaseConfig(argparse.Namespace):
         pass
 
 class BaseApp:
+    """
+    Base application for any util using this library.  Implement
+    `_extra_args` to provide more commandline options, and a function
+    to actually do something (I use `run()` but you do you).
+    """
 
     app_desc = 'Play Hades In-Game Dialogue'
     config_class = BaseConfig
@@ -682,12 +790,6 @@ class BaseApp:
     def _extra_args(self, parser):
         """
         Implement this if needed!
-        """
-        pass
-
-    def run(self):
-        """
-        Implement this to actually Do Something.
         """
         pass
 

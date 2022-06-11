@@ -378,6 +378,10 @@ A copy is also found in [COPYING.txt](COPYING.txt).
 Changelog
 ---------
 
+**2022-06-11**
+ - *(no functionality changes, but added in a bunch more docstring
+   info in the sourcecode)*
+
 **2022-06-10**
  - Added in some missing chars: Skelly, Thanatos-in-the-field, and
    Cerberus-in-the-field.

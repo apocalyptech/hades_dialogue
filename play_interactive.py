@@ -41,7 +41,12 @@ from rich.table import Table
 
 from hdialogue.hdialogue import BaseApp, BaseConfig
 
-def column_chunks(l, columns, pad=None):
+def column_chunks(l, columns):
+    """
+    Divide up a given list `l` into the specified number of
+    `columns`.  Yields each column in turn, as a list.  (Does
+    *not* do any padding.)
+    """
     length = len(l)
     if length == 0:
         yield []
@@ -51,11 +56,18 @@ def column_chunks(l, columns, pad=None):
             yield l[i:i + n]
 
 class Config(BaseConfig):
+    """
+    Extra config we need.  We're saving these to the config file as
+    well.
+    """
 
     columns = 3
     min_rows = 15
 
     def _read_extra_config(self, cp):
+        """
+        Extra config to read from our file
+        """
         if 'play_interactive' in cp:
             try:
                 self.columns = int(cp['play_interactive']['columns'])
@@ -70,18 +82,27 @@ class Config(BaseConfig):
         return {'play_interactive'}
 
     def _write_extra_config(self, cp):
+        """
+        Extra vars to save to the config file
+        """
         cp['play_interactive'] = {
                 'columns': self.columns,
                 'min_rows': self.min_rows,
                 }
 
 class Breadcrumb:
+    """
+    Helper to keep track of where we are in the object structure
+    """
 
     def __init__(self, option, prev_options):
         self.option = option
         self.prev_options = prev_options
 
 class Option:
+    """
+    A single option for the user
+    """
 
     def __init__(self, label, data, pos, breadcrumb_label=None):
         self.label = label
@@ -93,11 +114,18 @@ class Option:
             self.breadcrumb_label = breadcrumb_label
 
 class Result(enum.Enum):
+    """
+    The result of processing user input, if any (the routine which handles
+    user input might return None as well)
+    """
     PLAY = enum.auto()
     AUTOPLAY = enum.auto()
     AUTOPLAY_ALL = enum.auto()
 
 class App(BaseApp):
+    """
+    Interactive dialogue-playing app
+    """
 
     app_desc = 'Play Hades In-Game Dialogue (Interactive Console Version)'
     config_class = Config
@@ -114,6 +142,9 @@ class App(BaseApp):
             #print(t.styles)
 
     def _extra_args(self, parser):
+        """
+        Extra CLI args
+        """
 
         parser.add_argument('-c', '--columns',
                 type=int,
@@ -132,6 +163,20 @@ class App(BaseApp):
         print('')
 
     def process_options(self, options, stack, playing=True):
+        """
+        Present the user with a list of options, get their input, and then
+        do what's needed.
+
+        Note that this whole app makes a lot of assumptions about the data
+        structure, and checks for the length of our Breadcrumb stack to make
+        decisions about what to do.  Not especially flexible, but at the
+        moment, all of our data is arranged like:
+
+            Category -> Registry -> Bank -> VO
+
+        ... so if we're at a stack length of 4, we're always at a voiceover,
+        etc.  So, I never bothered making this more general-purpose.
+        """
 
         if len(stack) == 4:
             num_options = len(stack[-1].prev_options)
@@ -243,6 +288,9 @@ class App(BaseApp):
                 continue
 
     def run(self):
+        """
+        Here we go!
+        """
 
         print('')
         playing = False
@@ -260,6 +308,7 @@ class App(BaseApp):
 
             if options is None:
 
+                # More hardcoding behavior based on Breadcrumb stack length.  c'est la vie!
                 match len(stack):
 
                     case 0:

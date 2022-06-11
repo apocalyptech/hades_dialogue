@@ -29,6 +29,10 @@
 from hdialogue.hdialogue import BaseApp, BaseConfig
 
 class Config(BaseConfig):
+    """
+    Extra config which we're using.  None of this should be saved out to
+    our config file.
+    """
 
     character = None
     loot = None
@@ -37,11 +41,17 @@ class Config(BaseConfig):
     which = None
 
 class App(BaseApp):
+    """
+    Simple little app!
+    """
 
     app_desc = 'Play Hades In-Game Dialogue (CLI Version)'
     config_class = Config
 
     def _extra_args(self, parser):
+        """
+        Extra CLI args
+        """
 
         action_group = parser.add_mutually_exclusive_group(required=True)
 
@@ -78,6 +88,10 @@ class App(BaseApp):
                 )
 
     def play_registry(self, registry, choice, specific_notes=None):
+        """
+        Process voiceovers in a given registry, based on what we've been
+        told to do by the args.
+        """
 
         if self.config.which:
 
@@ -98,6 +112,9 @@ class App(BaseApp):
                 vo.play(do_prompt=True)
 
     def run(self):
+        """
+        Main app
+        """
 
         # NPC
         if self.config.npc:
