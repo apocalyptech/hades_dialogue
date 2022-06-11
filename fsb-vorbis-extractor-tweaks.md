@@ -33,8 +33,9 @@ source -- a few files in `VO.fsb` end up tripping assertions in the code.
 First, line 162 of `src/fsb/container.cpp` needs to be commented -- there's
 apparently a header in this FSB which the util doesn't know about, and
 its presence prevents the app from doing anything with the file.
-Commenting the line doens't appear to cause any problems for extracting
-the file, though:
+Commenting the line doesn't appear to cause any problems for extracting
+the file, though (this is reported in [PR #1](https://github.com/tmiasko/fsb-vorbis-extractor/pull/1)
+on that project, fwiw):
 
 ```patch
 diff --git a/src/fsb/container.cpp b/src/fsb/container.cpp
@@ -59,7 +60,9 @@ interrupts the rest of the extraction process.  Commenting out the check
 allows the extraction process to continue to other files.  The affected
 files end up sounding completely distorted, so clearly the check knows
 what it's talking about, but the impact of not having these eight files
-is pretty minor.  The patch in question:
+is pretty minor.  The patch in question (this is reported in
+[PR #2](https://github.com/tmiasko/fsb-vorbis-extractor/pull/2) on
+that project, fwiw):
 
 ```patch
 diff --git a/src/fsb/vorbis/rebuilder.cpp b/src/fsb/vorbis/rebuilder.cpp
