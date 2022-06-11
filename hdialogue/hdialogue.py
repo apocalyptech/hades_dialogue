@@ -374,6 +374,10 @@ class Registry:
             except NoVOsException:
                 pass
 
+    def copyfrom(self, other_registry):
+        for k, v in other_registry.items():
+            self.data[k] = v
+
     def __getitem__(self, key):
         return self.data[key]
 
@@ -413,6 +417,12 @@ class Dialogue:
         with lzma.open(config.enemydata_json) as df:
             enemydata = json.load(df)
         self.enemy = Registry(EnemyBank, self.oggs, self.config, enemydata['.Enemies'])
+
+        # Our enemy data also includes one that's actually an NPC (Skelly/TrainingMelee)
+        self.npc.copyfrom(Registry(NPCBank, self.oggs, self.config, enemydata['.Enemies']))
+
+        # ... and our NPC data includes a few that enemy-style entries, too (Cerberus + Thanatos)
+        self.enemy.copyfrom(Registry(EnemyBank, self.oggs, self.config, npcdata['.NPCs']))
 
         # Read lootdata json and create loot registry
         with lzma.open(config.lootdata_json) as df:

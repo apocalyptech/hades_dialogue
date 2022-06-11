@@ -373,6 +373,10 @@ A copy is also found in [COPYING.txt](COPYING.txt).
 Changelog
 ---------
 
+**2022-06-10**
+ - Added in some missing chars: Skelly, Thanatos-in-the-field, and
+   Cerberus-in-the-field.
+
 **2022-06-05**
  - Initial Release
 
