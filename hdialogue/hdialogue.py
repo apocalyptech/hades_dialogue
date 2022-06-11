@@ -44,15 +44,19 @@ import appdirs
 
 class OggLibrary:
     """
-    The utility I use to extract the oggs (fsb-vorbis-extractor) writes out
-    files which have a number prefix.  This class is used to provide a
+    The utility I use to extract the oggs (python-fsb5) writes out
+    files which have a `VO-` prefix.  This class is used to provide a
     nice cue-to-filename mapping so that we can start with a value like
-    `ZagreusHome_1286` and easily get `17028.ZagreusHome_1286.ogg`.  The
+    `ZagreusHome_1286` and easily get `VO-ZagreusHome_1286.ogg`.  The
     class acts like a dict whose keys are the cue name and whose values
     are the filename.
+
+    If you use an extractor other than `python-fsb5`, the resulting oggs
+    might follow a different naming pattern, and you may have to update
+    `ogg_re` to suit.
     """
 
-    ogg_re = re.compile(r'^(?P<num>\d+)\.(?P<vo>\S+)\.ogg$')
+    ogg_re = re.compile(r'^(?P<prefix>VO-)(?P<vo>\S+)\.ogg$')
 
     def __init__(self, base_path):
         self.base_path = base_path
@@ -583,7 +587,7 @@ class BaseConfig(argparse.Namespace):
     save_config = False
 
     # Main config options
-    ogg_dir = '/games/Steam/steamapps/common/Hades/Content/Audio/FMOD/Build/Desktop/tmp'
+    ogg_dir = '/games/Steam/steamapps/common/Hades/Content/Audio/FMOD/Build/Desktop/out'
     lua_dir = '/games/Steam/steamapps/common/Hades/Content/Scripts'
     npcdata_script = 'NPCData.lua'
     enemydata_script = 'EnemyData.lua'

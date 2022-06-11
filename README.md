@@ -21,12 +21,13 @@ files.
 
 It relies on reading the game's Lua scripts from the install directory,
 and also having the game's `VO.fsb` extracted into the component
-Ogg files.  [fsb-vorbis-extractor](https://github.com/tmiasko/fsb-vorbis-extractor)
-is one tool which can do it, though it requires a few source tweaks
-to run properly on Hades' file.  Other FSB extractors may not produce
-playable Oggs -- [fsbext](http://aluigi.altervista.org/search.php?src=fsbext)
-([github mirror](https://github.com/gdawg/fsbext)), for instance,
-won't work.
+Ogg files.  I recommend using [python-fsb5](https://github.com/HearthSim/python-fsb5)
+to do so.  Another project which is mostly capable of doing it is
+[fsb-vorbis-extractor](https://github.com/tmiasko/fsb-vorbis-extractor),
+but that tool [requires various source tweaks](fsb-vorbis-extractor-tweaks.md)
+to work against Hades' `VO.fsb`.  The tool [fsbext](http://aluigi.altervista.org/search.php?src=fsbext)
+([github mirror](https://github.com/gdawg/fsbext)) doesn't produce playable
+Ogg Vorbis files.
 
 The utilities use an external media player to actually play the media.
 It defaults to [mplayer](https://mplayerhq.hu/) but can be configured
@@ -51,9 +52,8 @@ Then, make sure to have the Hades game `Content/Scripts` directory
 available, and extract `Content/Audio/FMOD/Build/Desktop/VO.fsb` (see
 "Extracting Audio Files" below for info on that).
 
-**NOTE:** `fsb-vorbis-extractor` extracts the Ogg files with a number
-prefix which describes the position they were found inside the FSB
-file.  If you use a different extractor which produces different
+**NOTE:** `python-fsb5` extracts the Ogg files with a `VO-` prefix.
+If you use a different extractor which produces different
 filenames, this util will have to be updated slightly.  Check the
 regular expression `ogg_re` in the `OggLibrary` class inside
 `hdialogue/hdialogue.py` and alter to suit.  The symbolic group name
@@ -79,7 +79,7 @@ between the two are:
       -h, --help            show this help message and exit
       --ogg-dir OGG_DIR     Directory to find voiceover Ogg dirs (default: /games/
                             Steam/steamapps/common/Hades/Content/Audio/FMOD/Build/
-                            Desktop/tmp)
+                            Desktop/out)
       --lua-dir LUA_DIR     Directory to find the in-game Lua scripts (default:
                             /games/Steam/steamapps/common/Hades/Content/Scripts)
       --cache-dir CACHE_DIR
@@ -109,7 +109,7 @@ will be shown on the console, but should be `~/.config/hades_dialogue/hades_dial
 on Linux systems.  The file will end up looking like:
 
     [main]
-    ogg_dir = /games/Steam/steamapps/common/Hades/Content/Audio/FMOD/Build/Desktop/tmp
+    ogg_dir = /games/Steam/steamapps/common/Hades/Content/Audio/FMOD/Build/Desktop/out
     lua_dir = /games/Steam/steamapps/common/Hades/Content/Scripts
     cache_dir = /home/user/.cache/hades_dialogue
     media_player = mplayer
@@ -281,81 +281,13 @@ Extracting Audio Files
 
 As mentioned above, the game's `VO.fsb` file (in `Content/Audio/FMOD/Build/Desktop`),
 needs to be extracted to get access to the actual Ogg files.
-[fsb-vorbis-extractor](https://github.com/tmiasko/fsb-vorbis-extractor)
-is one project which can do so, though it requires a few tweaks to the
-source -- a few files in `VO.fsb` end up tripping assertions in the code.
+[python-fsb5](https://github.com/HearthSim/python-fsb5) is one project which
+can do so.  Simply check it out from github and run it:
 
-First, line 162 of `src/fsb/container.cpp` needs to be commented -- there's
-apparently a header in this FSB which the util doesn't know about, and
-its presence prevents the app from doing anything with the file.
-Commenting the line doens't appear to cause any problems for extracting
-the file, though:
+    $ ~/git/python-fsb5/extract.py -o out VO.fsb
 
-```patch
-diff --git a/src/fsb/container.cpp b/src/fsb/container.cpp
-index e58daf8..41f46a2 100644
---- a/src/fsb/container.cpp
-+++ b/src/fsb/container.cpp
-@@ -159,7 +159,7 @@ sample container::read_sample_header(io::buffer_view & view) {
-         view.skip(extra_length);
-         break;
-       default:
--        CHECK(false) << "Unexpected extra header type: " << type;
-+        //CHECK(false) << "Unexpected extra header type: " << type;
-         view.skip(extra_length);
-     }
-   }
-```
-
-Secondly, line 125 of `src/fsb/vorbis/rebuilder.cpp` does some CRC32
-checking on some Vorbis-specific headers.  The check fails when trying to
-extract a handful of files inside the archive, and when it does so, it
-interrupts the rest of the extraction process.  Commenting out the check
-allows the extraction process to continue to other files.  The affected
-files end up sounding completely distorted, so clearly the check knows
-what it's talking about, but the impact of not having these eight files
-is pretty minor.  The patch in question:
-
-```patch
-diff --git a/src/fsb/vorbis/rebuilder.cpp b/src/fsb/vorbis/rebuilder.cpp
-index 1f57929..0926155 100644
---- a/src/fsb/vorbis/rebuilder.cpp
-+++ b/src/fsb/vorbis/rebuilder.cpp
-@@ -122,8 +122,8 @@ void rebuilder::rebuild_headers(
-
-   const auto i =
-     std::lower_bound(headers, headers_end, crc32, headers_info_crc32_less());
--  CHECK(i != headers_end && i->crc32 == crc32)
--    << "Headers with CRC-32 equal " << crc32 << " not found.";
-+  /*CHECK(i != headers_end && i->crc32 == crc32)
-+    << "Headers with CRC-32 equal " << crc32 << " not found.";*/
-
-   rebuild_id_header(channels, rate, i->blocksize_short, i->blocksize_long, id);
-   rebuild_comment_header(comment, loop_start, loop_end);
-```
-
-Here's the files which are affected by this:
-
-* `Charon_0032` - On-hit cue when Charon gets damaged, saying *"Hmmmm....!"*
-* `Charon_0038` - Occurs during Charon's `CharonAboutHermes03`,
-  `CharonPostEnding02`, `BossCharonEncounter01`, and
-  `BossCharonAboutHermesQuest01` dialogues:
-  *"Mmnnn{#DialogueItalicFormat}rraaauuugggghhh{#PreviousFormat}!!"*
-* `Intercom_0097` - In `SurvivalEncounterStartVoiceLines`, Hades saying
-  *"You dare?"*
-* `Intercom_0312` - In `PerfectClearEncounterFailedVoiceLines`, Hades
-  saying *"Aww.'*
-* `Intercom_0419` - In `SurvivalEncounterSurvivedVoiceLines`, Hades
-  saying *"All right, break it up!"*
-* `Intercom_0857` - In `PerfectClearEncounterQuicklyFailedVoiceLines`,
-  Hades saying *"Hah, haha."*
-* `Nyx_0255` - Occurs in Megaera's `MegaeraWithNyx04` conversation,
-  Nyx replying *"Mmm."* at the end.
-* `Tisiphone_0075` - Not actually used in-game anywhere; commented out
-  from Tisiphone's `CauseOfDeathVoiceLines` in the game data.
-
-Of those eight, only two (`Charon_0038` and `Nyx_0255`) actually show up
-as playable dialogue in this project.
+The extracted audio will be in the `out` directory at that point.  (Or in
+whatever directory name you specified in the command.)
 
 TODO
 ----
@@ -379,8 +311,9 @@ Changelog
 ---------
 
 **2022-06-11**
- - *(no functionality changes, but added in a bunch more docstring
-   info in the sourcecode)*
+ - Switched to recommending `python-fsb5` to extract `VO.fsb`,
+   and updated our regexes to suit.
+ - Also added in a bunch more docstring info in the sourcecode
 
 **2022-06-10**
  - Added in some missing chars: Skelly, Thanatos-in-the-field, and
