@@ -8,6 +8,11 @@ Specifically, it focuses on "official" dialogue with character close-ups,
 rather than the incidental in-game dialogue which just has subtitles.  It
 should be able to play all dialogue you have directly with NPCs throughout
 the game, and also the dialogue you get when picking up Boons and the like.
+It will also print out the subtitles for the dialogue as it goes, though
+it's missing the subtitles for the final post-portrait character response
+lines.
+
+[![Screenshot of Interactive Script](screenshot.png)](screenshot.png)
 
 This repo is acutally two separate scripts -- one a basic CLI tool to play
 specific dialogues (or a group of dialogues), and another which
